@@ -71,6 +71,11 @@
 #define ALARM_LOW               1
 #define ALARM_HIGH              2
 
+#define MEASURE_INTERVAL_IN_NORMAL_STATE        (500)
+#define MEASURE_INTERVAL_IN_ALARM_STATE         (1000)
+
+//#define TEMP_MAX                (85.0f)
+//#define TEMP_MIN                (-40.0f)
 
 typedef enum
 {
@@ -103,6 +108,7 @@ float tmp_cfg_h_low;
 bool lcd_blinking = false;
 dev_hdc2080_t hdc2080_0 = HDC2080_DRIVER_DEFAULT();
 dev_hdc2080_t hdc2080_1 = HDC2080_DRIVER_DEFAULT();
+uint32_t measure_interval = MEASURE_INTERVAL_IN_NORMAL_STATE;
 
 int main(void)
 {
@@ -179,7 +185,7 @@ static void task_sensor(void *arg)
 {
 //    static bool over_temp = false;
     static uint32_t m_last_tick = 0;
-    if (m_sys_tick - m_last_tick >= (uint32_t)1000)
+    if (m_sys_tick - m_last_tick >= (uint32_t)measure_interval)
     {
         m_last_tick = m_sys_tick;
         float temp[2];
@@ -268,10 +274,12 @@ static void task_sensor(void *arg)
                 if (alarm)
                 {
                     RELAY_ALARM_ON();
+                    measure_interval = MEASURE_INTERVAL_IN_ALARM_STATE;
                 }
                 else
                 {
                     RELAY_ALARM_OFF();
+                    measure_interval = MEASURE_INTERVAL_IN_NORMAL_STATE;
                 }
                 
                 sprintf(tmp, "H  %.1f,  L  %.1f ", cfg->temp_high, cfg->temp_low);  

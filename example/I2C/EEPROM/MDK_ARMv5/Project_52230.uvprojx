@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\HT32\52230\Obj\</OutputDirectory>
-          <OutputName>HT32</OutputName>
+          <OutputName>temperature_humidity_sensor</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
