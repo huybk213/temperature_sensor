@@ -109,9 +109,9 @@ int main(void)
     
     static Lcd_PortType ports[] = 
     {
-      LCD_D0_PORT, LCD_D1_PORT, LCD_D2_PORT, LCD_D3_PORT,
+        LCD_D0_PORT, LCD_D1_PORT, LCD_D2_PORT, LCD_D3_PORT,
     };
-   
+
     static Lcd_PinType pins[] = {LCD_D0_PIN, LCD_D1_PIN, LCD_D2_PIN, LCD_D3_PIN};
 
     lcd.mode = LCD_4_BIT_MODE;
@@ -154,11 +154,11 @@ static void task_btn_scan(void *arg)
 
 static void task_sensor(void *arg)
 {
-    static bool over_temp = false;
+//    static bool over_temp = false;
     static uint32_t m_last_tick = 0;
-    if (sys_get_tick_ms() - m_last_tick >= (uint32_t)1000)
+    if (m_sys_tick - m_last_tick >= (uint32_t)1000)
     {
-        m_last_tick = sys_get_tick_ms();
+        m_last_tick = m_sys_tick;
                         
 //        if (SUCCESS == Read_TempAndHumidity (&sensor))
 //        {
@@ -185,6 +185,7 @@ static void task_sensor(void *arg)
 //        {
 //            DEBUG_INFO("Read sensor error\r\n");
 //            buzzer_beep = 0;
+            RELAY_ALARM_OFF();
 //        }
     }
 }
@@ -567,9 +568,9 @@ void assert_error(u8* filename, u32 uline)
      Example: printf("Parameter Error: file %s on line %d\r\n", filename, uline);
   */
     NVIC_SystemReset();
-  while (1)
-  {
-  }
+    while (1)
+    {
+    }
 }
 #endif
 
