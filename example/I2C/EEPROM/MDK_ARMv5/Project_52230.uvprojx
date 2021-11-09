@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HT32_DRIVER, USE_HT32F52230_SK, USE_HT32F52220_30, USE_MEM_HT32F52220</Define>
               <Undefine></Undefine>
-              <IncludePath>..\;..\..\..\..\library\CMSIS\Include;..\..\..\..\library\Device\Holtek\HT32F5xxxx\Include;..\..\..\..\library\HT32F5xxxx_Driver\inc;..\..\..\..\library\HT32_USBD_Library\inc;..\..\..\..\utilities;..\app_btn;..\lcd;..\app_debug;..\SEGGER_RTT_V698b\RTT;..\sync_drv;..\app_flash;..\hdc2080</IncludePath>
+              <IncludePath>..\;..\..\..\..\library\CMSIS\Include;..\..\..\..\library\Device\Holtek\HT32F5xxxx\Include;..\..\..\..\library\HT32F5xxxx_Driver\inc;..\..\..\..\library\HT32_USBD_Library\inc;..\..\..\..\utilities;..\app_btn;..\lcd;..\app_debug;..\SEGGER_RTT_V698b\RTT;..\sync_drv;..\app_flash;..\hdc2080;..\lpf</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -970,6 +970,21 @@
               <FileName>hdc2080.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\hdc2080\hdc2080.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>lpf</GroupName>
+          <Files>
+            <File>
+              <FileName>lpf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\lpf\lpf.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpf.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\lpf\lpf.h</FilePath>
             </File>
           </Files>
         </Group>

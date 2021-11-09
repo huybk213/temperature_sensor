@@ -24,7 +24,8 @@
         .startup_ms = HDC2080_STARTUP_MS, \
         .ready_cb = NULL,                 \
         .read = NULL,                     \
-        .write = NULL                     \
+        .write = NULL,                     \
+        .is_error = 0,                      \
     }
 
 typedef enum
@@ -71,6 +72,7 @@ typedef struct
     hdc2080_read_i2c_t read;
     hdc2080_ready_cb_t ready_cb;
     hdc2080_delay_cb_t delay_ms;
+    uint8_t is_error;
 } dev_hdc2080_t;
 
 /**

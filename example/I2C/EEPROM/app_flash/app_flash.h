@@ -13,10 +13,10 @@
 
 typedef struct
 {
-    uint32_t temp_low;
-    uint32_t temp_high;
-    uint32_t humi_low;
-    uint32_t humi_high;
+    float temp_low;
+    float temp_high;
+    float humi_low;
+    float humi_high;
     uint32_t flag;
 } app_flash_data_t;
 

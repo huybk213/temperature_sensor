@@ -8,6 +8,7 @@
 #include "app_sync.h"
 #include "app_flash.h"
 #include "hdc2080.h"
+#include "lpf.h"
 
 #define RELAY_PORT          HT_GPIOA
 #define RELAY_PIN           GPIO_PIN_1
@@ -66,11 +67,18 @@
 #define BUTTON_DOWN_INDEX       1
 #define BUTTON_UP_INDEX         2
 
+#define NO_ALARM                0
+#define ALARM_LOW               1
+#define ALARM_HIGH              2
+
+
 typedef enum
 {
     BUTTON_SETUP_STATE_INIT,
     BUTTON_SETUP_STATE_T_HIGH,
     BUTTON_SETUP_STATE_T_LOW,
+    BUTTON_SETUP_STATE_H_HIGH,
+    BUTTON_SETUP_STATE_H_LOW,
     BUTTON_SETUP_STATE_FINISH,
 } button_setup_state_t;
 
@@ -87,8 +95,11 @@ void sys_delay_ms(uint32_t ms);
 void task_btn_scan(void *arg);
 void task_sensor(void *arg);
 
-uint32_t tmp_cfg_t_high;
-uint32_t tmp_cfg_t_low;
+float tmp_cfg_t_high;
+float tmp_cfg_t_low;
+float tmp_cfg_h_high;
+float tmp_cfg_h_low;
+
 bool lcd_blinking = false;
 dev_hdc2080_t hdc2080_0 = HDC2080_DRIVER_DEFAULT();
 dev_hdc2080_t hdc2080_1 = HDC2080_DRIVER_DEFAULT();
@@ -162,6 +173,8 @@ static void task_btn_scan(void *arg)
     app_btn_scan(NULL);
 }
 
+lpf_data_t m_estimate_temp, m_estimate_humi;
+bool m_first_time = true;
 static void task_sensor(void *arg)
 {
 //    static bool over_temp = false;
@@ -171,39 +184,101 @@ static void task_sensor(void *arg)
         m_last_tick = m_sys_tick;
         float temp[2];
         float humi[2];
-        float temp_avg = 0;
-        if (hdc2080_read_temperature(&hdc2080_0, &temp[0]) && hdc2080_read_humidity(&hdc2080_0, &humi[0]))
+        uint8_t sensor_sum = 0;
+        float m_temp = 0.0f, m_humi = 0.0f;
+        if (hdc2080_0.is_error == 0
+             && hdc2080_read_temperature(&hdc2080_0, &temp[0]) && hdc2080_read_humidity(&hdc2080_0, &humi[0]))
         {
-            
+            m_temp += temp[0];
+            m_humi += humi[0];
+            sensor_sum++;
         }
-            
-//        if (SUCCESS == Read_TempAndHumidity (&sensor))
-//        {
-//            DEBUG_INFO("Temp %d.%d, humi %d.%d\r\n", sensor.temp_int, sensor.temp_deci, 
-//                                               sensor.humi_int, sensor.humi_deci);
-//            temperature = sensor.temp_int; 
-//            humidity = sensor.humi_int;
-//            if (lcd_blinking == false)
-//            {
-//                char tmp[17];
-//                memset(tmp, 0, sizeof(tmp));
-//                app_flash_data_t *cfg = app_flash_load_cfg();
-//                
-//                sprintf(tmp, "T: %uoC, H: %u%% ", temperature, humidity);
-//                Lcd_cursor(&lcd, 0,0);
-//                Lcd_string(&lcd, tmp);
-//                
-//                sprintf(tmp, "H  %02u,  L  %u  ", cfg->temp_high, cfg->temp_low);  
-//                Lcd_cursor(&lcd, 1,0);
-//                Lcd_string(&lcd, tmp);
-//            }
-//        }
-//        else
-//        {
-//            DEBUG_INFO("Read sensor error\r\n");
-//            buzzer_beep = 0;
-            RELAY_ALARM_OFF();
-//        }
+        else
+        {
+            hdc2080_0.is_error = 1;
+        }
+        
+        if (hdc2080_1.is_error == 0
+            && hdc2080_read_temperature(&hdc2080_1, &temp[1]) && hdc2080_read_humidity(&hdc2080_0, &humi[1]))
+        {
+            sensor_sum++;
+            m_temp += temp[1];
+            m_humi += humi[1];
+        }
+        else
+        {
+            hdc2080_0.is_error = 1;
+        }
+        
+        
+        if (sensor_sum)
+        {
+            m_temp /=  sensor_sum;
+            m_humi /= sensor_sum;
+        }
+        
+        if (sensor_sum && m_first_time)
+        {
+            m_estimate_temp.gain = 0.01;
+            m_estimate_temp.estimate_value = m_temp;
+            m_estimate_humi.gain = 0.01;
+            m_estimate_humi.estimate_value = m_humi;
+            m_first_time = false;
+        }
+        else if (sensor_sum)
+        {
+            lpf_update_estimate(&m_estimate_temp, m_temp);
+            lpf_update_estimate(&m_estimate_humi, m_humi);
+        }
+        
+        char tmp[24];
+        if (sensor_sum == 0) // Sensor error
+        {
+            RELAY_ALARM_ON();
+            if (!lcd_blinking)
+            {
+                sprintf(tmp, "SENSOR ERROR");
+                Lcd_cursor(&lcd, 0,0);
+                Lcd_string(&lcd, tmp);
+            }
+        }
+        else
+        {
+            sprintf(tmp, "T: %.1foC, H: %.1f%% ", m_estimate_temp.estimate_value, m_estimate_humi.estimate_value);
+            DEBUG_INFO("%s\r\n", tmp);
+            if (lcd_blinking == false)
+            {
+                app_flash_data_t *cfg = app_flash_load_cfg();
+                uint32_t alarm = 0;
+                if (m_estimate_temp.estimate_value >= cfg->temp_high
+                    || m_estimate_temp.estimate_value <= cfg->temp_low)
+                {
+                    alarm++;
+                }
+                
+                if (m_estimate_humi.estimate_value >= cfg->humi_high
+                    || m_estimate_humi.estimate_value <= cfg->humi_low)
+                {
+                    alarm++;
+                }
+                
+                Lcd_cursor(&lcd, 0,0);
+                Lcd_string(&lcd, tmp);
+                
+                if (alarm)
+                {
+                    RELAY_ALARM_ON();
+                }
+                else
+                {
+                    RELAY_ALARM_OFF();
+                }
+                
+                sprintf(tmp, "H  %.1f,  L  %.1f ", cfg->temp_high, cfg->temp_low);  
+                Lcd_cursor(&lcd, 1,0);
+                Lcd_string(&lcd, tmp);
+            }
+        }
     }
 }
 
@@ -336,6 +411,9 @@ void on_button_event_cb(int32_t button_pin, int32_t event, void *data)
                         m_btn_state = BUTTON_SETUP_STATE_T_HIGH;
                         tmp_cfg_t_high = app_flash_load_cfg()->temp_high;
                         tmp_cfg_t_low = app_flash_load_cfg()->temp_low;
+                        tmp_cfg_h_high = app_flash_load_cfg()->humi_high;
+                        tmp_cfg_h_low = app_flash_load_cfg()->humi_low;
+                        
                         lcd_blinking = true;
                         app_sync_register_callback(task_blink_lcd,
                                                    500,
@@ -351,12 +429,12 @@ void on_button_event_cb(int32_t button_pin, int32_t event, void *data)
                     }
                     else if (button_pin == BUTTON_UP_INDEX)
                     {
-                        tmp_cfg_t_high++;
+                        tmp_cfg_t_high += 0.4f;
                         DEBUG_INFO("Increase T high\r\n");
                     }
                     else
                     {
-                        tmp_cfg_t_high--;
+                        tmp_cfg_t_high += 0.4f;
                         DEBUG_INFO("Decrease T high\r\n");
                     }
                     break;
@@ -364,34 +442,75 @@ void on_button_event_cb(int32_t button_pin, int32_t event, void *data)
                 case BUTTON_SETUP_STATE_T_LOW:
                     if (button_pin == BUTTON_ENTER_INDEX)
                     {
-                        m_btn_state = BUTTON_SETUP_STATE_FINISH;
+                        m_btn_state = BUTTON_SETUP_STATE_H_HIGH;
+                    }
+                    else if (button_pin == BUTTON_UP_INDEX)
+                    {
+                        tmp_cfg_t_low += 0.4f;
+                        DEBUG_INFO("Increase T low\r\n");
+                    }
+                    else
+                    {
+                        tmp_cfg_t_low -= 0.4f;
+                        DEBUG_INFO("Decrease T low\r\n");
+                    }
+                    break;
+                    
+                case BUTTON_SETUP_STATE_H_HIGH:
+                {
+                     if (button_pin == BUTTON_ENTER_INDEX)
+                    {
+                        m_btn_state = BUTTON_SETUP_STATE_H_LOW;
+                    }
+                    else if (button_pin == BUTTON_UP_INDEX)
+                    {
+                        tmp_cfg_h_high += 1.0f;
+                        DEBUG_INFO("Increase H high\r\n");
+                    }
+                    else
+                    {
+                        tmp_cfg_h_low -= 1.0f;
+                        DEBUG_INFO("Decrease H high\r\n");
+                    }
+                }
+                    break;
+                
+                case BUTTON_SETUP_STATE_H_LOW:
+                {
+                    if (button_pin == BUTTON_ENTER_INDEX)
+                    {
                         app_flash_data_t cfg;
                         cfg.temp_high = tmp_cfg_t_high;
                         cfg.temp_low = tmp_cfg_t_low;
+                        cfg.humi_high = tmp_cfg_h_high;
+                        cfg.temp_low = tmp_cfg_h_low;
                         app_flash_store_data(&cfg);
+                        
                         DEBUG_INFO("Stored data to flash\r\n");
                         m_btn_state = BUTTON_SETUP_STATE_INIT;
                         char tmp[17];
-                        sprintf(tmp, "H  %02u,  L  %u  ", tmp_cfg_t_high, tmp_cfg_t_low); 
+                        sprintf(tmp, "H  %.1fu,  L  %.1f  ", tmp_cfg_t_high, tmp_cfg_t_low); 
                         Lcd_cursor(&lcd, 1,0);
                         Lcd_string(&lcd, tmp);
                         lcd_blinking = false;
                     }
                     else if (button_pin == BUTTON_UP_INDEX)
                     {
-                        tmp_cfg_t_low++;
-                        DEBUG_INFO("Increase T low\r\n");
+                        tmp_cfg_h_low += 1.0f;
+                        DEBUG_INFO("Increase H low\r\n");
                     }
                     else
                     {
-                        tmp_cfg_t_low--;
-                        DEBUG_INFO("Decrease T low\r\n");
+                        tmp_cfg_h_low -= 1.0f;
+                        DEBUG_INFO("Decrease H low\r\n");
                     }
+                }
                     break;
-                    
+                                
                 case BUTTON_SETUP_STATE_FINISH:
                     if (button_pin == BUTTON_ENTER_INDEX)
                     {
+                        button_pin = BUTTON_SETUP_STATE_INIT;
                     }
                     break;
                     
@@ -403,19 +522,19 @@ void on_button_event_cb(int32_t button_pin, int32_t event, void *data)
 
         case APP_BTN_EVT_RELEASED:
         {
-            switch (m_btn_state)
-            {
-                case BUTTON_SETUP_STATE_INIT:
-                    break;
-                case BUTTON_SETUP_STATE_T_HIGH:
-                    break;
-                case BUTTON_SETUP_STATE_T_LOW:
-                    break;
-                case BUTTON_SETUP_STATE_FINISH:
-                    break;
-                default:
-                    break;
-            }
+//            switch (m_btn_state)
+//            {
+//                case BUTTON_SETUP_STATE_INIT:
+//                    break;
+//                case BUTTON_SETUP_STATE_T_HIGH:
+//                    break;
+//                case BUTTON_SETUP_STATE_T_LOW:
+//                    break;
+//                case BUTTON_SETUP_STATE_FINISH:
+//                    break;
+//                default:
+//                    break;
+//            }
         }
             break;
 
@@ -501,22 +620,22 @@ static void task_blink_lcd(void *arg)
     {
         if (m_btn_state == BUTTON_SETUP_STATE_T_HIGH)
         {
-            sprintf(tmp, "H  %02u,  L  %u  ", tmp_cfg_t_high, tmp_cfg_t_low);      
+            sprintf(tmp, "H  %.1fu,  L  %.1f  ", tmp_cfg_t_high, tmp_cfg_t_low);      
         }
         else if (m_btn_state == BUTTON_SETUP_STATE_T_LOW)
         {
-            sprintf(tmp, "H  %02u,  L  %02u  ", tmp_cfg_t_high, tmp_cfg_t_low); 
+            sprintf(tmp, "H  %.1f,  L  %.1f  ", tmp_cfg_t_high, tmp_cfg_t_low); 
         }            
     }
     else
     {
         if (m_btn_state == BUTTON_SETUP_STATE_T_HIGH)
         {
-            sprintf(tmp, "H    ,  L  %u  ", tmp_cfg_t_low); 
+            sprintf(tmp, "H    ,  L  %.1f  ", tmp_cfg_t_low); 
         }
         else if (m_btn_state == BUTTON_SETUP_STATE_T_LOW)
         {
-            sprintf(tmp, "H  %02u,  L    ", tmp_cfg_t_high); 
+            sprintf(tmp, "H  %.1fu,  L    ", tmp_cfg_t_high); 
         }  
     }
     
