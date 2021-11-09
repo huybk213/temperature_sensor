@@ -115,16 +115,12 @@ int main(void)
     static Lcd_PinType pins[] = {LCD_D0_PIN, LCD_D1_PIN, LCD_D2_PIN, LCD_D3_PIN};
 
     lcd.mode = LCD_4_BIT_MODE;
-
-	lcd.en_pin = LCD_EN_PIN;
-	lcd.en_port = LCD_EN_PORT;
-
-	lcd.rs_pin = LCD_RS_PIN;
-	lcd.rs_port = LCD_RS_PORT;
-
-	lcd.data_pin = pins;
-	lcd.data_port = ports;
-    
+    lcd.en_pin = LCD_EN_PIN;
+    lcd.en_port = LCD_EN_PORT;
+    lcd.rs_pin = LCD_RS_PIN;
+    lcd.rs_port = LCD_RS_PORT;
+    lcd.data_pin = pins;
+    lcd.data_port = ports;
     lcd.lcd_delay = sys_delay_ms;
     
     Lcd_create(&lcd);
@@ -168,7 +164,7 @@ static void task_sensor(void *arg)
 //            humidity = sensor.humi_int;
 //            if (lcd_blinking == false)
 //            {
-//                char tmp[16];
+//                char tmp[17];
 //                memset(tmp, 0, sizeof(tmp));
 //                app_flash_data_t *cfg = app_flash_load_cfg();
 //                
@@ -354,7 +350,7 @@ void on_button_event_cb(int32_t button_pin, int32_t event, void *data)
                         app_flash_store_data(&cfg);
                         DEBUG_INFO("Stored data to flash\r\n");
                         m_btn_state = BUTTON_SETUP_STATE_INIT;
-                        char tmp[16];
+                        char tmp[17];
                         sprintf(tmp, "H  %02u,  L  %u  ", tmp_cfg_t_high, tmp_cfg_t_low); 
                         Lcd_cursor(&lcd, 1,0);
                         Lcd_string(&lcd, tmp);
