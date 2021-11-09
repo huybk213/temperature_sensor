@@ -1,0 +1,7 @@
+﻿*.o
+*.crf
+*.d
+*.dep
+example/I2C/EEPROM/MDK_ARMv5/HT32/52230/Obj
+example/I2C/EEPROM/MDK_ARMv5/HT32/52230/List
+*.huybk
