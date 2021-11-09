@@ -7,6 +7,7 @@
 #include "lcd.h"
 #include "app_sync.h"
 #include "app_flash.h"
+#include "hdc2080.h"
 
 #define RELAY_PORT          HT_GPIOA
 #define RELAY_PIN           GPIO_PIN_1
@@ -89,6 +90,8 @@ void task_sensor(void *arg);
 uint32_t tmp_cfg_t_high;
 uint32_t tmp_cfg_t_low;
 bool lcd_blinking = false;
+dev_hdc2080_t hdc2080_0 = HDC2080_DRIVER_DEFAULT();
+dev_hdc2080_t hdc2080_1 = HDC2080_DRIVER_DEFAULT();
 
 int main(void)
 {
@@ -125,7 +128,7 @@ int main(void)
     
     Lcd_create(&lcd);
     Lcd_cursor(&lcd, 0,0);
-    
+        
     app_sync_config_t config;
     config.get_ms = sys_get_tick_ms;
     config.polling_interval_ms = 1;
@@ -135,7 +138,18 @@ int main(void)
                                20,
                                SYNC_DRV_REPEATED,
                                SYNC_DRV_SCOPE_IN_LOOP);
-                               
+    
+    if (m_sys_tick < HDC2080_STARTUP_MS)
+    {
+        sys_delay_ms(HDC2080_STARTUP_MS - m_sys_tick);
+    }
+    
+    hdc2080_1.addr = HDC2080_ADDR+1;
+    hdc2080_init(&hdc2080_0);
+    hdc2080_init(&hdc2080_1);
+    hdc2080_set_resolution(&hdc2080_0, HDC2080_RESOLUTION_11BIT, HDC2080_RESOLUTION_11BIT);
+    hdc2080_set_resolution(&hdc2080_1, HDC2080_RESOLUTION_11BIT, HDC2080_RESOLUTION_11BIT);
+    
     while (1)
     {
         app_sync_polling_task();
@@ -155,7 +169,14 @@ static void task_sensor(void *arg)
     if (m_sys_tick - m_last_tick >= (uint32_t)1000)
     {
         m_last_tick = m_sys_tick;
-                        
+        float temp[2];
+        float humi[2];
+        float temp_avg = 0;
+        if (hdc2080_read_temperature(&hdc2080_0, &temp[0]) && hdc2080_read_humidity(&hdc2080_0, &humi[0]))
+        {
+            
+        }
+            
 //        if (SUCCESS == Read_TempAndHumidity (&sensor))
 //        {
 //            DEBUG_INFO("Temp %d.%d, humi %d.%d\r\n", sensor.temp_int, sensor.temp_deci, 

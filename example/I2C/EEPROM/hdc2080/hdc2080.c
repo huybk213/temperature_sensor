@@ -29,7 +29,7 @@ bool hdc2080_init(dev_hdc2080_t *config)
     if (!config)
         return false;
     
-    config->delay_ms(HDC2080_STARTUP_MS);
+//    config->delay_ms(HDC2080_STARTUP_MS);
 
     return true;
 }
